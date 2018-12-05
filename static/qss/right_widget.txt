@@ -1,0 +1,27 @@
+QWidget#right_widget{
+    color:#232C51;
+    background:white;
+}
+QLabel#right_lable{
+    border:none;
+    font-size:16px;
+    font-weight:700;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+QPushButton#download_btn
+{
+    color: rgb(255, 255, 255);
+    border:none;
+    padding: 3px;
+    text-align: center;
+    border-image:url(./static/img/search1.png);
+}
+QPushButton#download_btn:hover, QPushButton#download_btn:pressed
+{
+    border-image:url(./static/img/search2.png);
+}
+QPushButton#download_btn:checked
+{
+    border-image:url(./static/img/stop.png);
+}

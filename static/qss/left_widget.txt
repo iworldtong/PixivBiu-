@@ -1,0 +1,43 @@
+QPushButton{
+    border: none;
+    color: rgb(168, 214, 249);
+}
+QPushButton#left_label{
+    color: rgb(168, 214, 249);
+    margin-top: 20px;
+    font-size: 20px;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+QPushButton#left_label:hover{
+    color: white;
+}
+QPushButton#left_button:hover{
+    color: white;
+    background: rgb(13, 113, 207);
+}
+QListWidget, QListView, QTreeWidget, QTreeView {
+    outline: 0px;
+}
+QListWidget#left_listWidget{
+    outline: 0px;
+    min-height: 250px;
+    color: rgb(168, 214, 249);
+    background: rgb(29, 139, 241);
+    font-size: 14px;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+QListWidget#left_listWidget::item:hover{
+    color: white;
+}
+QListWidget#left_listWidget::item:selected {
+    color: white;
+    background: rgb(13, 113, 207);
+}
+
+
+
+QWidget#left_widget{
+    min-width: 120px;
+    max-width: 120px;
+    background: rgb(29, 139, 241);
+}
