@@ -1,0 +1,11 @@
+#ProgressBar {
+	border: 1px solid #E0E0E0;
+	min-height: 4px;
+	max-height: 4px;
+	border-radius: 2px;
+}
+
+#ProgressBar::chunk {
+	background-color: rgb(168, 214, 249);
+}
+              

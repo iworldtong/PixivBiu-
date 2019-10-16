@@ -1,12 +1,13 @@
-# PixivBiu
-自动下载Pixiv图片，UI界面基于PyQt5
+# PixivBiu~
+Pixiv图片下载器，UI界面基于PyQt5
+
+本项目基于[upbit/pixivpy](https://github.com/upbit/pixivpy)构建。
 
 ### 功能介绍
 
 * 按关键词批量下载
 * 可限定收藏量范围
 
-### 演示
+### Demo
 
-<div style="position:relative;height:0;padding-bottom:73.56%"><iframe src="https://www.youtube.com/embed/XxlZLIoUo5w?ecver=2" style="position:absolute;width:100%;height:100%;left:0" width="489" height="360" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>
-
+<div align="center"><img src="https://res.cloudinary.com/dzu6x6nqi/image/upload/v1571231724/github/Snipaste_2019-10-16_21-11-52.png"></div>

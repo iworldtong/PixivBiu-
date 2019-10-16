@@ -2,17 +2,11 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 import qtawesome
 import sys,os
+import pickle
 
-import requests
 
-
-from lib.metrobar import *
-from lib.cirlabel import *
-from lib.animation import *
-from lib.notification import *
-
-from lib.login_thread import *
-from lib.download_thread import *
+from lib import *
+from pixivpy3.bapi import ByPassSniApi
 
 
 
@@ -20,57 +14,25 @@ class MainUi(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.is_login = False
+        self.is_premium = False
+        
         self.cfg = {
-            'pixiv_id': '',
-            'password': '',
-            'premium': False,
-            'session': requests.Session(),
-            'login': False,
-            'rember_me': False,
-            'headers': {
-                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.96 Safari/537.36'
-            }, 
-            'params': {
-                'source': 'pc',
-                'view_type': 'page',
-                'ref': 'wwwtop_accounts_index'
-            },
-            'datas': {
-                'pixiv_id': '',
-                'password': '',
-                'captcha': '',
-                'g_reaptcha_response': '',
-                'post_key': '',
-                'source': 'pc',
-                'ref': 'wwwtop_accounts_indes',
-                'return_to': 'https://www.pixiv.net/'
-            },
-            # setting
-            'search_list': [],
-            'url': {
-                'pixiv': 'https://www.pixiv.net',
-                'login': 'https://accounts.pixiv.net/login',
-                'usrset': 'https://www.pixiv.net/setting_user.php',
-                'profile': 'https://www.pixiv.net/setting_profile_img.php',
-            },
-            'proxies': {
-                'https': 'socks5://127.0.0.1:1086',
-                'http': 'socks5://127.0.0.1:1086'
-            },
-            'sleep_download_time': 0.5,
-            'max_try': 5,
-            'search_type': 'tag',
-            'ms': True,
-            'page_set': None,
-            'popular_lower': None,
-            'popular_upper': None,
-            'save_dir': os.path.dirname(__file__),
+            'type': None,
+            'key': None,
+            'min_popular': 0,
+            'use_ms': True,
+
+            'sleep_download_time': 1,
+
             'cache_dir': './cache',
-            'cookies_fn': './cache/pixiv_cookies',
-            'usr_info_path': './cache/usr_info.txt',
+            'save_dir': './download',
+            'login_cache': 'login.pickle',
         }
 
-        self.download_thread = None
+        self.api = ByPassSniApi()
+        self.api.require_appapi_hosts()
+        self.api.set_accept_language('en-us')  # zh-cn
 
         # 缓存登陆信息，下载进度
         if not os.path.exists(self.cfg['cache_dir']):
@@ -103,26 +65,28 @@ class MainUi(QtWidgets.QMainWindow):
         self.right_stackedWidget = QtWidgets.QStackedWidget()
         self.right_layout.addWidget(self.right_stackedWidget)
 
-
         self.main_layout.addWidget(self.left_widget)
         self.main_layout.addWidget(self.right_widget)
         self.main_layout.setSpacing(0)
 
-        self.setFixedSize(900,640)
-        # self.setWindowIcon(QtGui.QIcon('./static/img/pixiv.ico'))
-        self.setWindowTitle('Pixiv Biu～')
+        self.resize(900,640)
+        self.setWindowIcon(QtGui.QIcon('./static/img/pixiv.ico'))
+        self.setWindowTitle('PixivBiu～')
         self.setCentralWidget(self.main_widget)
 
         self.init_left_nav()
         self.init_serach_page()
         self.init_login_page()
         self.init_setting_page()
-        self.init_about_page()       
+        self.init_about_page()
+                
 
     def init_left_nav(self):
         #####################################################
         #               左侧导航栏
         #####################################################
+        nav_list = ['搜索','账号','设置','关于']
+
         self.home_label = QtWidgets.QPushButton("PixivBiu")
         self.home_label.setObjectName('left_label')
 
@@ -132,7 +96,6 @@ class MainUi(QtWidgets.QMainWindow):
         self.left_listWidget.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.left_listWidget.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.left_listWidget.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
-        nav_list = ['搜索','账号','设置','关于']
         for i in nav_list:
             item = QtWidgets.QListWidgetItem(i, self.left_listWidget)            
             item.setSizeHint(QtCore.QSize(16777215, 60)) 
@@ -143,13 +106,12 @@ class MainUi(QtWidgets.QMainWindow):
         self.left_layout.addWidget(self.left_listWidget)
         self.left_layout.addStretch(8)
 
-        with open('./static/qss/left_widget.txt') as f:
-            left_widget_qss = f.readlines()
-            left_widget_qss =''.join(left_widget_qss).strip('\n')
-        self.left_widget.setStyleSheet(left_widget_qss)
+        load_qss_from_txt(self.left_widget, './static/qss/left_widget.txt')
+        load_qss_from_txt(self.right_widget, './static/qss/right_widget.txt')
 
         self.home_label.clicked.connect(self.left_listWidget.setCurrentRow, 0)
         self.left_listWidget.currentRowChanged.connect(self.right_stackedWidget.setCurrentIndex)
+
 
     def download_thread_callback(self, msg):
         print(msg)
@@ -168,18 +130,13 @@ class MainUi(QtWidgets.QMainWindow):
 
     def download_btn_callback(self):
         # 判断是否满足下载条件
-        if (not self.cfg['login']) or (not os.path.exists(self.cfg['cookies_fn'])):
-            self.download_btn.setChecked(False)
-            NotificationWindow.warning('账号未登录', '或未检测到cookie')    
-            return False 
-
-        if not self.page_set_el.text().isdigit():
-            if len(self.page_set_el.text()) > 0:
-                self.download_btn.setChecked(False)
-                NotificationWindow.warning('下载页数必须为整数', '')    
-                return False 
-        else:
-            self.cfg['page_set'] = int(self.page_set_el.text())
+        # if not self.page_set_el.text().isdigit():
+        #     if len(self.page_set_el.text()) > 0:
+        #         self.download_btn.setChecked(False)
+        #         NotificationWindow.warning('下载页数必须为整数', '')    
+        #         return False 
+        # else:
+        #     self.cfg['page_range'] = int(self.page_set_el.text())
 
         if not self.popular_lower_el.text().isdigit():
             if len(self.popular_lower_el.text()) > 0:
@@ -187,32 +144,18 @@ class MainUi(QtWidgets.QMainWindow):
                 NotificationWindow.warning('收藏量下限必须为整数', '')    
                 return False 
         else:
-            self.cfg['popular_lower'] = int(self.popular_lower_el.text())
-
-        if not self.popular_upper_el.text().isdigit():
-            if len(self.popular_upper_el.text()) > 0:
-                self.download_btn.setChecked(False)
-                NotificationWindow.warning('收藏量上限必须为整数', '')    
-                return False 
-        else:
-            self.cfg['popular_upper'] = int(self.popular_upper_el.text())
-
-        if self.cfg['popular_upper'] is not None and self.cfg['popular_lower'] is not None and self.cfg['popular_upper'] < self.cfg['popular_lower']:
-            self.download_btn.setChecked(False)
-            NotificationWindow.warning('收藏量上限必须大于下限', '')    
-            return False 
-
+            self.cfg['min_popular'] = int(self.popular_lower_el.text())
 
         # 下载流程
         if self.download_btn.isChecked():
-            self.cfg['search_list'] = self.search_input.text().split(' ')
+            self.cfg['key'] = self.search_input.text().strip()
 
             self.search_input.setEnabled(False)
             self.pixiv_icon_effect.start()
             self.opacity.setOpacity(1)
             self.progress_bar.setGraphicsEffect(self.opacity)
 
-            self.download_thread = DownloadThread(self.cfg)
+            self.download_thread = DownloadThread(self.api, self.cfg)
             self.download_thread._signal.connect(self.download_thread_callback)
             self.download_thread.start()
         else:
@@ -229,6 +172,11 @@ class MainUi(QtWidgets.QMainWindow):
         #####################################################
         #               搜索页面 
         #####################################################
+        self.search_widget = QtWidgets.QWidget() 
+        self.search_layout = QtWidgets.QGridLayout() 
+        self.search_layout.setSpacing(10)
+        self.search_widget.setLayout(self.search_layout)  
+
         # icon显示
         # self.pixiv_icon = QtWidgets.QToolButton()
         # self.pixiv_icon.setIcon(QtGui.QIcon('./static/img/pixiv.png'))
@@ -237,15 +185,11 @@ class MainUi(QtWidgets.QMainWindow):
         self.pixiv_icon = QtWidgets.QLabel(self)
         self.pixiv_icon.setMinimumSize(100, 100)
         self.pixiv_icon.setMaximumSize(100, 100)
-        self.pixiv_icon.setStyleSheet('border-image: url(./static/img/pixiv.png);border-radius: 50px;')
+        self.pixiv_icon.setStyleSheet('border-image: url(./static/img/pixiv.png); border-radius: 50px;')
         self.pixiv_icon_effect = AnimationShadowEffect(QtGui.QColor(29, 139, 241))
         self.pixiv_icon.setGraphicsEffect(self.pixiv_icon_effect)
 
         # 搜索框
-        self.search_widget = QtWidgets.QWidget() 
-        self.search_layout = QtWidgets.QGridLayout() 
-        self.search_layout.setSpacing(10)
-        self.search_widget.setLayout(self.search_layout)     
         self.search_input = QtWidgets.QLineEdit()
         self.search_input.setPlaceholderText("Biu~")
         self.search_input.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0)
@@ -268,12 +212,12 @@ class MainUi(QtWidgets.QMainWindow):
         self.tp_g.addButton(self.usr_rb, 12)        
         def tp_change():
             if self.tp_g.checkedId() == 11:
-                self.cfg['search_type'] = 'tag'
+                self.cfg['type'] = 'tag'
             elif self.tp_g.checkedId() == 12:
-                self.cfg['search_type'] = 'usr'
+                self.cfg['type'] = 'uid'
         self.tp_g.buttonClicked.connect(tp_change)
         self.tag_rb.toggle()
-        self.cfg['search_type'] = 'tag'
+        self.cfg['type'] = 'tag'
         self.tag_rb.setEnabled(False)
         self.usr_rb.setEnabled(False)
 
@@ -289,11 +233,12 @@ class MainUi(QtWidgets.QMainWindow):
 
         # 下载进度条
         self.progress_bar = QtWidgets.QProgressBar(minimum=0, maximum=100, textVisible=False,
-                        objectName="ProgressBar")
+                                                   objectName="ProgressBar")
         self.opacity = QtWidgets.QGraphicsOpacityEffect()
         self.opacity.setOpacity(0)
         self.progress_bar.setGraphicsEffect(self.opacity)
 
+        # 布局
         self.tp_layout.addWidget(self.tag_rb)
         self.tp_layout.addWidget(self.usr_rb)
         self.tp_layout.addStretch(0)
@@ -312,35 +257,11 @@ class MainUi(QtWidgets.QMainWindow):
         self.search_layout.setColumnStretch(1,10)
         self.search_layout.setColumnStretch(5,1)
 
-        self.search_input.setStyleSheet('''
-            QLineEdit{
-                border:none;
-                border-bottom:1px solid gray;
-                font-size: 16px;
-                font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-                padding:2px 4px;
-            }
-            QLineEdit:hover{
-                border-bottom:2px solid black;
-            }
-            QLineEdit:focus{
-                border-bottom:2px solid rgb(13, 113, 207);
-            }
-            ''')
-        self.progress_bar.setStyleSheet('''
-            #ProgressBar {
-                border: 1px solid #E0E0E0;
-                min-height: 4px;
-                max-height: 4px;
-                border-radius: 2px;
-            }
-            #ProgressBar::chunk {
-                background-color: rgb(168, 214, 249);
-                border-radius: 2px;
-            }
-            ''')
+        load_qss_from_txt(self.search_input, './static/qss/search_page_input.txt')
+        load_qss_from_txt(self.progress_bar, './static/qss/search_page_progressbar.txt')
 
         self.right_stackedWidget.addWidget(self.search_widget)
+
 
     def init_login_page(self):
         #####################################################
@@ -350,6 +271,8 @@ class MainUi(QtWidgets.QMainWindow):
         self.login_layout = QtWidgets.QGridLayout() 
         self.login_widget.setLayout(self.login_layout)
 
+        self.login_info = {'uid': '', 'pwd': ''}
+
         # 用户头像
         # self.profile_icon = QtWidgets.QToolButton()
         # self.profile_icon.setIcon(QtGui.QIcon('./static/img/anonymous.png'))
@@ -358,34 +281,29 @@ class MainUi(QtWidgets.QMainWindow):
         self.profile_icon = CirLabel(img_path='./static/img/anonymous.png')
 
         # 信息输入框
-        self.id_le = QtWidgets.QLineEdit()
-        self.id_le.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0)
-        self.id_le.setPlaceholderText("Pixvi ID")
+        self.uid_le = QtWidgets.QLineEdit()
+        self.uid_le.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0)
+        self.uid_le.setPlaceholderText("Pixvi ID")
         self.pwd_le = QtWidgets.QLineEdit()
         self.pwd_le.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0)
         self.pwd_le.setEchoMode(QtWidgets.QLineEdit.Password)
         self.pwd_le.setPlaceholderText("Password")
 
         # 检查是否有历史登录信息
-        if os.path.exists(self.cfg['usr_info_path']):
-            with open(self.cfg['usr_info_path'], 'r') as f:
-                l = f.readline()
-                while l:
-                    if len(l) > 9:
-                        if l[0:9] == "pixiv_id:":
-                            self.id_le.setText(l.split(':')[-1].strip())
-                        elif l[0:9] == "password:":
-                            self.pwd_le.setText(l.split(':')[-1].strip())
-                    l = f.readline()
+        if os.path.exists(os.path.join(self.cfg['cache_dir'], self.cfg['login_cache'])):
+            with open(os.path.join(self.cfg['cache_dir'], self.cfg['login_cache']), 'rb') as f:
+                self.login_info = pickle.load(f)
+                self.uid_le.setText(self.login_info['uid'])
+                self.pwd_le.setText(self.login_info['pwd'])
 
 
         # 关联登陆输入与登陆按钮
         def login_info_change():
-            if len(self.id_le.text().strip()) > 0 and len(self.pwd_le.text().strip()) > 0:
+            if len(self.uid_le.text().strip()) > 0 and len(self.pwd_le.text().strip()) > 0:
                 self.login_btn.setEnabled(True)
             else:
                 self.login_btn.setEnabled(False)
-        self.id_le.textChanged.connect(login_info_change)
+        self.uid_le.textChanged.connect(login_info_change)
         self.pwd_le.textChanged.connect(login_info_change)
 
         # 登陆、登出按钮
@@ -396,36 +314,24 @@ class MainUi(QtWidgets.QMainWindow):
         def login_btn_callback():
             if self.login_btn.text() == login_s:
                 # 设置本地ss代理
-                ss_ip = self.local_ss_ip_el.text().strip()
-                ss_port = self.local_ss_port_el.text().strip()
-                ss_sock5 = 'socks5://'+ ss_ip + ':' + ss_port
-                self.cfg['proxies'] = {
-                        'https': ss_sock5,
-                        'http' : ss_sock5,
-                    }
-                try:
-                    self.cfg['session'].proxies = self.cfg['proxies']
-                except Exception as e:
-                    self.download_btn.setChecked(False)
-                    NotificationWindow.warning('本地代理设置错误', str(e))
-                    return False
-                self.cfg['pixiv_id'] = self.id_le.text().strip()
-                self.cfg['password'] = self.pwd_le.text().strip()
+                self.login_info['uid'] = self.uid_le.text().strip()
+                self.login_info['pwd'] = self.pwd_le.text().strip()
                 # 登陆时主界面冻结
                 self.usr_type = QtWidgets.QLabel()
                 self.usr_type.setAlignment(Qt.AlignCenter)
                 self.login_metrobar = MetroCircleProgress(styleSheet='''qproperty-color: #3498DB;''')
                 self.login_layout.addWidget(self.login_metrobar,5,0,1,6)
-                self.id_le.setEnabled(False)
+                self.uid_le.setEnabled(False)
                 self.pwd_le.setEnabled(False)
                 self.login_btn.setEnabled(False)
-                # 创建登陆子线程
-                self.login_thread = LoginThread(self.cfg)
+                # 登陆
+                self.login_thread = LoginThread(self.login_info, self.api)
                 self.login_thread._signal.connect(login_thread_callback)
                 self.login_thread.start()
+                
             else:
                 self.profile_icon.setIcon('./static/img/anonymous.png')
-                self.id_le.show()
+                self.uid_le.show()
                 self.pwd_le.show()
                 self.if_rember_ck.show()
                 self.login_btn.setText(login_s)
@@ -435,39 +341,37 @@ class MainUi(QtWidgets.QMainWindow):
                 self.login_layout.removeWidget(self.usr_type)
                 self.usr_type.deleteLater()
 
-                self.cfg['login'] = False
-                self.cfg['pixiv_id'] = ''
-                self.cfg['password'] = ''
-                self.cfg['session'] = requests.Session()
+                self.is_login = False
+                self.login_info['uid'] = ''
+                self.login_info['pwd'] = ''
 
         def login_thread_callback(msg):
-            self.id_le.setEnabled(True)
+            self.uid_le.setEnabled(True)
             self.pwd_le.setEnabled(True)
             self.login_btn.setEnabled(True)
 
-            if msg != 'failed':
+            if msg != 'false':
+                self.user_json = self.api.user_detail(self.api.user_id)
                 # 保存登陆信息
-                self.cfg['login'] = True
                 if self.if_rember_ck.isChecked():
-                    with open(self.cfg['usr_info_path'], 'w') as f:
-                        f.write('pixiv_id:'+self.cfg['pixiv_id']+'\n')
-                        f.write('password:'+self.cfg['password']+'\n')
+                    with open(os.path.join(self.cfg['cache_dir'], self.cfg['login_cache']), 'wb') as f:
+                        pickle.dump(self.login_info, f)
                 else:
-                    if os.path.exists(self.cfg['usr_info_path']):
-                        os.remove(self.cfg['usr_info_path'])
+                    if os.path.exists(os.path.join(self.cfg['cache_dir'], self.cfg['login_cache'])):
+                        os.remove(os.path.join(self.cfg['cache_dir'], self.cfg['login_cache']))
                
                 # 判断是否高级用户
                 if msg == "premium":
                     self.usr_type.setText("高级会员")
-                    self.cfg['premium'] = True
+                    self.is_premium = True
                 else:
                     self.usr_type.setText("普通会员")
-                    self.cfg['premium'] = False
+                    self.is_premium = False
                 self.usr_type.setFont(QtGui.QFont("Roman times",14,QtGui.QFont.Bold))
                 
                 # 整理主界面
                 self.login_btn.setText(logout_s)
-                self.id_le.hide()
+                self.uid_le.hide()
                 self.pwd_le.hide()
                 self.if_rember_ck.hide()
                 self.login_layout.addWidget(self.usr_type,1,1,1,4)
@@ -487,12 +391,12 @@ class MainUi(QtWidgets.QMainWindow):
                     self.profile_icon.setIcon(self.profile_path)
                     # self.profile_icon.setIcon(QtGui.QIcon(self.profile_path))
                     os.remove(self.profile_path)
-                NotificationWindow.success('登陆成功', '')
+                NotificationWindow.success('欢迎回来, {}'.format(self.user_json.user.name), '')
 
             else:
-                self.cfg['login'] = False
-                self.cfg['pixiv_id'] = ''
-                self.cfg['password'] = ''
+                self.is_login = False
+                self.login_info['uid'] = ''
+                self.login_info['pwd'] = ''
                 NotificationWindow.error('登陆失败','')
             # 去掉等待动画
             self.login_layout.removeWidget(self.login_metrobar)
@@ -502,13 +406,15 @@ class MainUi(QtWidgets.QMainWindow):
 
         # 是否保存登陆信息
         self.if_rember_ck = QtWidgets.QCheckBox('记住我')
-        def if_rember_callback():
-            self.cfg['rember_me'] = self.if_rember_ck.isChecked()
-        self.if_rember_ck.stateChanged.connect(if_rember_callback)
-        self.if_rember_ck.setChecked(os.path.exists(self.cfg['usr_info_path']))
+        # def if_rember_callback():
+        #     self.cfg['rember_me'] = self.if_rember_ck.isChecked()
+        # self.if_rember_ck.stateChanged.connect(if_rember_callback)
+        # self.if_rember_ck.setChecked(os.path.exists(self.cfg['usr_info_path']))
+        self.if_rember_ck.setChecked(True)
 
+        # 布局
         self.login_layout.addWidget(self.profile_icon,0,1,1,4,QtCore.Qt.AlignCenter)
-        self.login_layout.addWidget(self.id_le,1,1,1,4)
+        self.login_layout.addWidget(self.uid_le,1,1,1,4)
         self.login_layout.addWidget(self.pwd_le,2,1,1,4)
         self.login_layout.addWidget(self.if_rember_ck,3,2,1,2,QtCore.Qt.AlignCenter)
         self.login_layout.addWidget(self.login_btn,4,2,1,2)
@@ -520,11 +426,7 @@ class MainUi(QtWidgets.QMainWindow):
         self.login_layout.setColumnStretch(2,4)
         self.login_layout.setColumnStretch(5,7)
 
-        with open('./static/qss/login_widget.txt') as f:
-            login_widget_qss = f.readlines()
-            login_widget_qss =''.join(login_widget_qss).strip('\n')
-        self.login_widget.setStyleSheet(login_widget_qss)
-
+        load_qss_from_txt(self.login_widget, './static/qss/login_page.txt')
 
         self.right_stackedWidget.addWidget(self.login_widget)
     
@@ -537,21 +439,21 @@ class MainUi(QtWidgets.QMainWindow):
         self.set_widget.setLayout(self.set_layout)
 
         # 页数限定
-        self.page_widget = QtWidgets.QWidget()
-        self.page_layout = QtWidgets.QGridLayout() 
-        self.page_widget.setLayout(self.page_layout)
+        # self.page_widget = QtWidgets.QWidget()
+        # self.page_layout = QtWidgets.QGridLayout() 
+        # self.page_widget.setLayout(self.page_layout)
         
-        self.page_label = QtWidgets.QLabel("限定搜索页数")
-        self.page_label.setObjectName("header")
-        self.page_set_label = QtWidgets.QLabel("页数")
-        self.page_set_el = QtWidgets.QLineEdit()
-        self.page_set_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
-        self.page_set_el.setPlaceholderText("不限")
+        # self.page_label = QtWidgets.QLabel("限定搜索页数")
+        # self.page_label.setObjectName("header")
+        # self.page_set_label = QtWidgets.QLabel("页数")
+        # self.page_set_el = QtWidgets.QLineEdit()
+        # self.page_set_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
+        # self.page_set_el.setPlaceholderText("不限")
 
-        row_start = 0
-        self.set_layout.addWidget(self.page_label,row_start,0,1,2)
-        self.set_layout.addWidget(self.page_set_label,row_start+1,0,1,1)
-        self.set_layout.addWidget(self.page_set_el,row_start+1,1,1,1)
+        # row_start = 0
+        # self.set_layout.addWidget(self.page_label,row_start,0,1,2)
+        # self.set_layout.addWidget(self.page_set_label,row_start+1,0,1,1)
+        # self.set_layout.addWidget(self.page_set_el,row_start+1,1,1,1)
 
 
         # 收藏量限定
@@ -562,43 +464,37 @@ class MainUi(QtWidgets.QMainWindow):
         self.popular_label = QtWidgets.QLabel("限定收藏量")
         self.popular_label.setObjectName("header")
         self.popular_lower_label = QtWidgets.QLabel("下限")
-        self.popular_upper_label = QtWidgets.QLabel("上限")
-        self.popular_lower_el = QtWidgets.QLineEdit("1000")
+        self.popular_lower_el = QtWidgets.QLineEdit("10")
         self.popular_lower_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
-        self.popular_upper_el = QtWidgets.QLineEdit("")
-        self.popular_upper_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
         self.popular_lower_el.setPlaceholderText("不限")
-        self.popular_upper_el.setPlaceholderText("不限")
 
         row_start = 3
         self.set_layout.addWidget(self.popular_label,row_start,0,1,2)
         self.set_layout.addWidget(self.popular_lower_label,row_start+1,0,1,1)
         self.set_layout.addWidget(self.popular_lower_el,row_start+1,1,1,1)
-        self.set_layout.addWidget(self.popular_upper_label,row_start+1,4,1,1)
-        self.set_layout.addWidget(self.popular_upper_el,row_start+1,5,1,1)
 
 
         # 本地ss代理设置
-        self.local_ss_widget = QtWidgets.QWidget()
-        self.local_ss_layout = QtWidgets.QGridLayout() 
-        self.local_ss_widget.setLayout(self.local_ss_layout)
+        # self.local_ss_widget = QtWidgets.QWidget()
+        # self.local_ss_layout = QtWidgets.QGridLayout() 
+        # self.local_ss_widget.setLayout(self.local_ss_layout)
         
 
-        self.local_ss_label = QtWidgets.QLabel("本地ss代理")
-        self.local_ss_label.setObjectName("header")
-        self.local_ss_ip_label = QtWidgets.QLabel("IP")
-        self.local_ss_port_label = QtWidgets.QLabel("Port")
-        self.local_ss_ip_el = QtWidgets.QLineEdit("127.0.0.1")
-        self.local_ss_ip_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
-        self.local_ss_port_el = QtWidgets.QLineEdit("1086")
-        self.local_ss_port_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
+        # self.local_ss_label = QtWidgets.QLabel("本地ss代理")
+        # self.local_ss_label.setObjectName("header")
+        # self.local_ss_ip_label = QtWidgets.QLabel("IP")
+        # self.local_ss_port_label = QtWidgets.QLabel("Port")
+        # self.local_ss_ip_el = QtWidgets.QLineEdit("127.0.0.1")
+        # self.local_ss_ip_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
+        # self.local_ss_port_el = QtWidgets.QLineEdit("1086")
+        # self.local_ss_port_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
 
-        row_start = 6
-        self.set_layout.addWidget(self.local_ss_label,row_start,0,1,2)
-        self.set_layout.addWidget(self.local_ss_ip_label,row_start+1,0,1,1)
-        self.set_layout.addWidget(self.local_ss_ip_el,row_start+1,1,1,2)
-        self.set_layout.addWidget(self.local_ss_port_label,row_start+1,4,1,1)
-        self.set_layout.addWidget(self.local_ss_port_el,row_start+1,5,1,1)
+        # row_start = 6
+        # self.set_layout.addWidget(self.local_ss_label,row_start,0,1,2)
+        # self.set_layout.addWidget(self.local_ss_ip_label,row_start+1,0,1,1)
+        # self.set_layout.addWidget(self.local_ss_ip_el,row_start+1,1,1,2)
+        # self.set_layout.addWidget(self.local_ss_port_label,row_start+1,4,1,1)
+        # self.set_layout.addWidget(self.local_ss_port_el,row_start+1,5,1,1)
 
         # 下载到
         self.sdir_label = QtWidgets.QLabel("下载到")
@@ -611,7 +507,7 @@ class MainUi(QtWidgets.QMainWindow):
             self.sdir_btn.setText(self.cfg['save_dir'])
         self.sdir_btn.clicked.connect(sdir_btn_callback)
 
-        row_start = 9
+        row_start = 6#9
         self.set_layout.addWidget(self.sdir_label,row_start,0,1,2)
         self.set_layout.addWidget(self.sdir_btn,row_start,1,1,4)
 
@@ -624,12 +520,12 @@ class MainUi(QtWidgets.QMainWindow):
         self.ms_label = QtWidgets.QLabel("高级设置")
         self.ms_label.setObjectName("header")
         self.ms_ck = QtWidgets.QCheckBox('多线程下载')
-        self.ms_ck.setChecked(self.cfg['ms'])
+        self.ms_ck.setChecked(self.cfg['use_ms'])
         def if_ms_ck_callback():
-            self.cfg['ms'] = self.ms_ck.isChecked()
+            self.cfg['use_ms'] = self.ms_ck.isChecked()
         self.ms_ck.stateChanged.connect(if_ms_ck_callback)
 
-        row_start = 12
+        row_start = 9#12
         self.set_layout.addWidget(self.ms_label,row_start,0,1,2)
         self.set_layout.addWidget(self.ms_ck,row_start+1,0,1,1)
 
@@ -641,11 +537,7 @@ class MainUi(QtWidgets.QMainWindow):
         self.set_layout.setRowStretch(11,1)
         self.set_layout.setRowStretch(18,10)
 
-
-        with open('./static/qss/set_widget.txt') as f:
-            set_widget_qss = f.readlines()
-            set_widget_qss =''.join(set_widget_qss).strip('\n')
-        self.set_widget.setStyleSheet(set_widget_qss)
+        load_qss_from_txt(self.set_widget, './static/qss/setting_page.txt')
 
         self.right_stackedWidget.addWidget(self.set_widget)
 
@@ -653,21 +545,26 @@ class MainUi(QtWidgets.QMainWindow):
         #####################################################
         #               关于页面 
         #####################################################
+        self.about_widget = QtWidgets.QWidget()
+        self.about_layout = QtWidgets.QGridLayout() 
+        self.about_widget.setLayout(self.about_layout)
+
         label = QtWidgets.QLabel('为热爱二次元的你')
         label.setAlignment(QtCore.Qt.AlignCenter)
         # 设置label的背景颜色(这里随机)
-        # 这里加了一个margin边距(方便区分QStackedWidget和QLabel的颜色)
-        label.setStyleSheet('background: rgb(%d, %d, %d);margin: 50px;' % (255, 255, 255))
-        self.right_stackedWidget.addWidget(label)
+        # 这里加了一个margin边距(方便区分QStackedWidget和QLabel的颜色)     
 
-        with open('./static/qss/right_widget.txt') as f:
-            right_widget_qss = f.readlines()
-            right_widget_qss =''.join(right_widget_qss).strip('\n')
-        self.right_widget.setStyleSheet(right_widget_qss)
+        self.about_layout.addWidget(label,1,1,1,1)
 
+        load_qss_from_txt(self.about_widget, './static/qss/about_page.txt')
 
+        self.right_stackedWidget.addWidget(self.about_widget)
 
-
+        # with open('./static/qss/right_widget.txt') as f:
+        #     right_widget_qss = f.readlines()
+        #     right_widget_qss =''.join(right_widget_qss).strip('\n')
+        # self.right_widget.setStyleSheet(right_widget_qss)
+        # load_qss_from_txt(self.right_widget, './static/qss/about_page.txt')
 
 
 if __name__ == '__main__':

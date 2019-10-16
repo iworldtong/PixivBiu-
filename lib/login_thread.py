@@ -79,109 +79,46 @@ class LoginThread(QThread):
     # 通过类成员对象定义信号对象
     _signal = pyqtSignal(str)
  
-    def __init__(self, cfg, parent=None):
+    def __init__(self, info, api):
         super(LoginThread, self).__init__()
-        self.cfg = cfg
-
-        self.max_try = self.cfg['max_try']
-        self.headers = self.cfg['headers']
-        self.params = self.cfg['params']
-        self.datas = self.cfg['datas']
-        self.cfg['session'].proxies = self.cfg['proxies']
-        self.cfg['session'].headers = self.headers
-        self.cfg['session'].cookies = http.cookiejar.LWPCookieJar(filename='cookies')
+        self.info = info
+        self.api = api
 
     def __del__(self):
         self.wait()
  
     def run(self):
-        msg = self.login(self.cfg['pixiv_id'], self.cfg['password'])
+        msg = self.login(self.info['uid'], self.info['pwd'])
         self._signal.emit(msg)
  
     def callback(self, msg):
-        pass
-        # self._signal.emit(msg)
+        self._signal.emit(msg)
+
+    def get_profile(self, json_result):
+        profile_url = json_result.user.profile_image_urls.medium
+        url_basename = os.path.basename(profile_url)
+        extension = os.path.splitext(url_basename)[1]
+        name = 'profile.' + extension
+
+        self.api.download(profile_url, path='./cache', name=name)
 
 
-
-    def get_profile(self):
-        bs = get_bs(self.cfg['session'], self.cfg['url']['profile'], self.max_try)
-        div_bs = bs.find('div',{'class':'_user-icon size-170 cover-texture'})
-
-        if div_bs is not None:
-            url = div_bs.get('style').split('\'')[-2]
-            img_type = url.split('/')[-1].split('.')[-1]
-            if img_type in ['jpg', 'png', 'jpeg']:
-                self.profile_fn = os.path.join(self.cfg['cache_dir'], 'profile.'+img_type)
-                self.headers['Referer'] = self.cfg['url']['profile']
-                download_from_url(url, self.headers, self.profile_fn, self.profile_fn+'.txt', max_try=10, sleep_download_time=1)
-            return True
-        else:
-            return False
-
-    def check_premium(self):       
-        bs = get_bs(self.cfg['session'], self.cfg['url']['pixiv'], self.max_try)
-        #content = self.session.post(self.root_url, params=self.params).text
-        for script in bs.find_all("script"):
-            text = script.text
-            if 'premium' in text and 'dataLayer' in text:                
-                if text[text.find('premium')+10:text.find('premium')+13] == 'yes':
-                    self.premium = True
-                    return True
-                else:
-                    self.premium = False
-                    return False
-
-    def get_postkey(self):
-        # get login page
-        res = self.cfg['session'].get(self.cfg['url']['login'], params=self.params)
-        # get post_key
-        pattern = re.compile(r'name="post_key" value="(.*?)">')
-        r = pattern.findall(res.text)
-        self.datas['post_key'] = r[0]
-
-
-    def already_login(self):
-        # Request the user configuration interface to determine if it is logged in   
-        try:   
-            login_code = self.cfg['session'].get(self.cfg['url']['usrset'], allow_redirects=False).status_code                
-            return True if login_code == 200 else False
-        except Exception as e:
-            print_log(str(e))
-            return False
-
-    def login(self, pixiv_id, password):
-        print_log('logging in...')
-        # set postkey
+    def login(self, uid, pwd):
         try:
-            self.get_postkey()
-        except:
-            pass
+            self.api.login(uid, pwd)
 
-        self.datas['pixiv_id'] = self.cfg['pixiv_id']
-        self.datas['password'] = self.cfg['password']
+            json_result = self.api.user_detail(self.api.user_id)
 
-        # send post request to simulated login
-        try:
-            content = self.cfg['session'].post(self.cfg['url']['login'], data=self.datas).content
-        except Exception as e:
-            print_log('Failed.')
-            return 'failed'
-
-        if self.get_profile():
-            # save cookies
-            self.cfg['session'].cookies.save(filename=self.cfg['cookies_fn'], ignore_discard=True, ignore_expires=True)
-            print_log('Successfully logged in.')
-            # check premium
-            if self.check_premium():
-                print_log('Hello ' + self.datas['pixiv_id'] + ' (premium)!')    
+            self.get_profile(json_result)
+            if json_result.profile.is_premium:
                 return 'premium'
             else:
-                print_log('Hello ' + self.datas['pixiv_id'] + '!')     
-                return 'norm'
-        else:
-            print_log('Login failed.')
-            return 'failed'
+                return 'normal'
+
+        except Exception as e:
+            return 'false'
+        
+        
 
 
 

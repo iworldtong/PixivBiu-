@@ -152,3 +152,4 @@ class MetroCircleProgress(QWidget):
 
     def sizeHint(self):
         return QSize(100, self.Radius * 2)
+        

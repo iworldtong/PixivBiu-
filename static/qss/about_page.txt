@@ -1,0 +1,8 @@
+QLabel{
+    border:none;
+    background: rgb(255, 255, 255);
+    margin: 50px;
+    font-size:25px;
+    font-weight:700;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}

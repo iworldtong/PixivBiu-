@@ -1,0 +1,15 @@
+QLineEdit{
+	border:none;
+        border-bottom:1px solid gray;
+        font-size: 16px;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        padding:2px 4px;
+}
+
+QLineEdit:hover{
+	border-bottom:2px solid black;
+}
+
+QLineEdit:focus{
+	border-bottom:2px solid rgb(13, 113, 207);
+}
