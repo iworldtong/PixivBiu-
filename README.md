@@ -12,4 +12,4 @@ Pixiv图片下载器，UI界面基于PyQt5
 
 ### Demo
 
-<div align="center"><img src="https://res.cloudinary.com/dzu6x6nqi/image/upload/v1571234965/github/gifhome_1920x1080_5s.gif"></div>
+<div align="center"><img height="400px" src="https://res.cloudinary.com/dzu6x6nqi/image/upload/v1571234965/github/gifhome_1920x1080_5s.gif"></div>
