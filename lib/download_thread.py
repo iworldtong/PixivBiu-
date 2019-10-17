@@ -100,7 +100,7 @@ class DownloadThread(QThread):
         def url2name(self, url, title):
             url_basename = os.path.basename(url)
             extension = os.path.splitext(url_basename)[1]
-            name = "%s%s" % (title, extension)
+            name = "%s_%d%s" % (title, self.illust.total_bookmarks, extension)
             name = validate_title(name)
             return name
 
@@ -108,17 +108,44 @@ class DownloadThread(QThread):
             try:
                 if self.illust.total_bookmarks > self.father.cfg['min_popular']:
                     image_url = self.illust.image_urls.large
-                    name = self.url2name(image_url, str(self.illust.id))
-                    self.father.api.download(image_url, path=self.father.download_dir, name=name)     
+                    image_url = self.illust.meta_single_page.get('original_image_url', self.illust.image_urls.large)
+                    name = self.url2name(image_url, str(self.illust.id))                    
+                    self.download(image_url, path=self.father.download_dir, name=name)
 
                     if isinstance(self.illust.meta_single_page, list):
                         for i, j in enumerate(self.illust.meta_single_page):  
-                            image_url = j['image_urls']['large']  
+                            image_url = j['image_urls']['original']  
                             name = self.url2name(image_url, str(self.illust.id)+'_'+str(i+1))
-                            self.father.api.download(image_url, path=self.father.download_dir, name=name) 
+                            self.download(image_url, path=self.father.download_dir, name=name)
+                    
             except Exception as e:
                 print(e)
+
+        def download(self, image_url, path, name):
+            try:
+                fl = os.listdir(path)
+                old_f = None
+                for f in fl:
+                    if str(self.illust.id) in f:
+                        old_f = f   
                 
+                if old_f is None:
+                    self.father.api.download(image_url, path=path, name=name) 
+                    print('\tdownload: '+image_url)
+                else:
+                    old_mark = int(old_f.split('.')[0].split('_')[-1])
+                    if self.illust.total_bookmarks != old_mark:
+                        new_f = old_f.replace(str(old_mark), str(self.illust.total_bookmarks))
+                        os.rename(os.path.join(path, old_f),
+                                  os.path.join(path, new_f))
+
+                        print('\trename: %s -> %s' %(old_f, new_f))
+                    else:
+                        print('\tskip: '+image_url)
+
+            except Exception as e:
+                print('\tfailed: '+image_url)
+                pass                
             
 
 
