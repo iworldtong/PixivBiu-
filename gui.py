@@ -130,21 +130,28 @@ class MainUi(QtWidgets.QMainWindow):
 
     def download_btn_callback(self):
         # 判断是否满足下载条件
-        # if not self.page_set_el.text().isdigit():
-        #     if len(self.page_set_el.text()) > 0:
-        #         self.download_btn.setChecked(False)
-        #         NotificationWindow.warning('下载页数必须为整数', '')    
-        #         return False 
-        # else:
-        #     self.cfg['page_range'] = int(self.page_set_el.text())
-
-        if not self.popular_lower_el.text().isdigit():
-            if len(self.popular_lower_el.text()) > 0:
+        if not self.page_start_el.text().isdigit():
+            if len(self.page_start_el.text()) > 0:
                 self.download_btn.setChecked(False)
-                NotificationWindow.warning('收藏量下限必须为整数', '')    
+                NotificationWindow.warning('页数必须为整数', '')    
                 return False 
         else:
-            self.cfg['min_popular'] = int(self.popular_lower_el.text())
+            self.cfg['page_start'] = int(self.page_start_el.text())
+        if not self.page_num_el.text().isdigit():
+            if len(self.page_num_el.text()) > 0:
+                self.download_btn.setChecked(False)
+                NotificationWindow.warning('页数必须为整数', '')    
+                return False 
+        else:
+            self.cfg['page_num'] = int(self.page_num_el.text())
+
+        # if not self.popular_lower_el.text().isdigit():
+        #     if len(self.popular_lower_el.text()) > 0:
+        #         self.download_btn.setChecked(False)
+        #         NotificationWindow.warning('收藏量下限必须为整数', '')    
+        #         return False 
+        # else:
+        #     self.cfg['min_popular'] = int(self.popular_lower_el.text())
 
         # 下载流程
         if self.download_btn.isChecked():
@@ -439,39 +446,45 @@ class MainUi(QtWidgets.QMainWindow):
         self.set_widget.setLayout(self.set_layout)
 
         # 页数限定
-        # self.page_widget = QtWidgets.QWidget()
-        # self.page_layout = QtWidgets.QGridLayout() 
-        # self.page_widget.setLayout(self.page_layout)
+        self.page_widget = QtWidgets.QWidget()
+        self.page_layout = QtWidgets.QGridLayout() 
+        self.page_widget.setLayout(self.page_layout)
         
-        # self.page_label = QtWidgets.QLabel("限定搜索页数")
-        # self.page_label.setObjectName("header")
-        # self.page_set_label = QtWidgets.QLabel("页数")
-        # self.page_set_el = QtWidgets.QLineEdit()
-        # self.page_set_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
-        # self.page_set_el.setPlaceholderText("不限")
+        self.page_label = QtWidgets.QLabel("限定搜索页数")
+        self.page_label.setObjectName("header")
+        self.page_start_label = QtWidgets.QLabel("起始页")
+        self.page_start_el = QtWidgets.QLineEdit("1")
+        self.page_start_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
+        self.page_start_el.setPlaceholderText("不限")
+        self.page_num_label = QtWidgets.QLabel("页数")
+        self.page_num_el = QtWidgets.QLineEdit("100")
+        self.page_num_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
+        self.page_num_el.setPlaceholderText("不限")
 
-        # row_start = 0
-        # self.set_layout.addWidget(self.page_label,row_start,0,1,2)
-        # self.set_layout.addWidget(self.page_set_label,row_start+1,0,1,1)
-        # self.set_layout.addWidget(self.page_set_el,row_start+1,1,1,1)
+        row_start = 0
+        self.set_layout.addWidget(self.page_label,row_start,0,1,2)
+        self.set_layout.addWidget(self.page_start_label,row_start+1,0,1,1)
+        self.set_layout.addWidget(self.page_start_el,row_start+1,1,1,2)
+        self.set_layout.addWidget(self.page_num_label,row_start+1,4,1,1)
+        self.set_layout.addWidget(self.page_num_el,row_start+1,5,1,1)
 
 
         # 收藏量限定
-        self.popular_widget = QtWidgets.QWidget()
-        self.popular_layout = QtWidgets.QGridLayout() 
-        self.popular_widget.setLayout(self.popular_layout)
+        # self.popular_widget = QtWidgets.QWidget()
+        # self.popular_layout = QtWidgets.QGridLayout() 
+        # self.popular_widget.setLayout(self.popular_layout)
         
-        self.popular_label = QtWidgets.QLabel("限定收藏量")
-        self.popular_label.setObjectName("header")
-        self.popular_lower_label = QtWidgets.QLabel("下限")
-        self.popular_lower_el = QtWidgets.QLineEdit("10")
-        self.popular_lower_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
-        self.popular_lower_el.setPlaceholderText("不限")
+        # self.popular_label = QtWidgets.QLabel("限定收藏量")
+        # self.popular_label.setObjectName("header")
+        # self.popular_lower_label = QtWidgets.QLabel("下限")
+        # self.popular_lower_el = QtWidgets.QLineEdit("10")
+        # self.popular_lower_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
+        # self.popular_lower_el.setPlaceholderText("不限")
 
-        row_start = 3
-        self.set_layout.addWidget(self.popular_label,row_start,0,1,2)
-        self.set_layout.addWidget(self.popular_lower_label,row_start+1,0,1,1)
-        self.set_layout.addWidget(self.popular_lower_el,row_start+1,1,1,1)
+        # row_start = 3
+        # self.set_layout.addWidget(self.popular_label,row_start,0,1,2)
+        # self.set_layout.addWidget(self.popular_lower_label,row_start+1,0,1,1)
+        # self.set_layout.addWidget(self.popular_lower_el,row_start+1,1,1,1)
 
 
         # 本地ss代理设置
@@ -507,7 +520,7 @@ class MainUi(QtWidgets.QMainWindow):
             self.sdir_btn.setText(self.cfg['save_dir'])
         self.sdir_btn.clicked.connect(sdir_btn_callback)
 
-        row_start = 6#9
+        row_start = 3#9
         self.set_layout.addWidget(self.sdir_label,row_start,0,1,2)
         self.set_layout.addWidget(self.sdir_btn,row_start,1,1,4)
 
@@ -525,7 +538,7 @@ class MainUi(QtWidgets.QMainWindow):
             self.cfg['use_ms'] = self.ms_ck.isChecked()
         self.ms_ck.stateChanged.connect(if_ms_ck_callback)
 
-        row_start = 9#12
+        row_start = 6#12
         self.set_layout.addWidget(self.ms_label,row_start,0,1,2)
         self.set_layout.addWidget(self.ms_ck,row_start+1,0,1,1)
 

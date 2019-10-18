@@ -11,6 +11,7 @@ import re
 import os
 import socket
 
+from lib import *
 
 
 def validate_title(title):
@@ -50,7 +51,7 @@ class DownloadThread(QThread):
     def run_by_page_ms(self, illusts):
         mt_list = []
         for illust in illusts:
-            mt = self.ms_download_by_items(self, illust)
+            mt = self.ms_download_by_illust(self, illust)
             mt.start()
             mt_list.append(mt)
 
@@ -65,33 +66,38 @@ class DownloadThread(QThread):
 
     def run_by_tag(self): 
         # work by tags
-        page_i = 1
+        # json_result = self.api.search_illust(self.cfg['key'], search_target='partial_match_for_tags')
+        
+        for page_i in range(self.cfg['page_start'], self.cfg['page_num']+self.cfg['page_start']):
+            print('keyword: %s,page num: %d' %(self.cfg['key'], page_i))
+            msg, illusts = fetch_page(self.cfg['key'], page_i)
 
-        json_result = self.api.search_illust(self.cfg['key'], search_target='partial_match_for_tags')
-        while True:
-            print('page num: %d' %(page_i))
-            page_i += 1
+            if msg != '搜索结果获取成功':
+                print('\terror: '+msg)
+                continue 
 
-            self.run_by_page_ms(json_result['illusts'])
+            self.run_by_page_ms(illusts)
+
             time.sleep(self.cfg['sleep_download_time'])
 
-            if json_result.next_url is not None:
-                next_qs = self.api.parse_qs(json_result.next_url)
-                json_result = self.api.search_illust(**next_qs)
-            else:
-                break
+            # if json_result.next_url is not None:
+            #     next_qs = self.api.parse_qs(json_result.next_url)
+            #     json_result = self.api.search_illust(**next_qs)
+            # else:
+            #     break
 
             if self._quit:
                 break
 
         self._signal.emit('done')
 
- 
+
     def callback(self, msg):
         if msg == 'stop':
             self._quit = True
 
-    class ms_download_by_items(threading.Thread):
+
+    class ms_download_by_illust(threading.Thread):
         def __init__(self, father, illust):
             threading.Thread.__init__(self)            
             self.father = father
@@ -107,22 +113,35 @@ class DownloadThread(QThread):
 
         def run(self):   
             try:
-                if self.illust.total_bookmarks > self.father.cfg['min_popular']:
-                    image_url = self.illust.image_urls.large
-                    image_url = self.illust.meta_single_page.get('original_image_url', self.illust.image_urls.large)
-                    name = self.url2name(image_url)                    
-                    self.download(image_url, path=self.father.download_dir, name=name)
+                self.illust = self.father.api.illust_detail(self.illust['id'])['illust']
+                page_cnt = self.illust['page_count']
+                if page_cnt == 1:
+                    image_url = self.illust.meta_single_page.get('original_image_url', 
+                                                                self.illust.image_urls.large)
+                    self.download(image_url, path=self.father.download_dir)
+                else:
+                    for i in range(page_cnt):
+                        image_url = self.illust.meta_pages[i]['image_urls'].get('original', 
+                                                                self.illust.meta_pages[i]['image_urls']['large'])
+                        self.download(image_url, path=self.father.download_dir)      
+                
+                # if self.illust.total_bookmarks > self.father.cfg['min_popular']:
+                #     image_url = self.illust.image_urls.large
+                #     image_url = self.illust.meta_single_page.get('original_image_url', self.illust.image_urls.large)
+                #     name = self.url2name(image_url)                    
+                #     self.download(image_url, path=self.father.download_dir, name=name)
 
-                    if isinstance(self.illust.meta_single_page, list):
-                        for i, j in enumerate(self.illust.meta_single_page):  
-                            image_url = j['image_urls']['original']  
-                            name = self.url2name(image_url)
-                            self.download(image_url, path=self.father.download_dir, name=name)
+                #     if isinstance(self.illust.meta_single_page, list):
+                #         for i, j in enumerate(self.illust.meta_single_page):  
+                #             image_url = j['image_urls']['original']  
+                #             name = self.url2name(image_url)
+                #             self.download(image_url, path=self.father.download_dir, name=name)
                     
             except Exception as e:
                 print(e)
 
-        def download(self, image_url, path, name):
+        def download(self, image_url, path):
+            name = self.url2name(image_url) 
             try:
                 fl = os.listdir(path)
                 old_f = None
@@ -132,7 +151,7 @@ class DownloadThread(QThread):
                 
                 if old_f is None:
                     self.father.api.download(image_url, path=path, name=name) 
-                    print('\tdownload: '+image_url)
+                    print('\tdownload: '+name)
                 else:
                     old_mark = int(old_f.split('.')[0].split('_')[-1])
                     if self.illust.total_bookmarks != old_mark:
@@ -142,10 +161,10 @@ class DownloadThread(QThread):
 
                         print('\trename: %s -> %s' %(old_f, new_f))
                     else:
-                        print('\tskip: '+image_url)
+                        print('\tskip: '+name)
 
             except Exception as e:
-                print('\tfailed: '+image_url)
+                print('\tfailed: '+name)
                 pass                
             
 
