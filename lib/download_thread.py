@@ -115,6 +115,10 @@ class DownloadThread(QThread):
             try:
                 self.illust = self.father.api.illust_detail(self.illust['id'])['illust']
                 page_cnt = self.illust['page_count']
+
+                if self.illust['total_bookmarks'] < self.father.cfg['min_popular']:
+                    return
+
                 if page_cnt == 1:
                     image_url = self.illust.meta_single_page.get('original_image_url', 
                                                                 self.illust.image_urls.large)
