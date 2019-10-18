@@ -145,13 +145,13 @@ class MainUi(QtWidgets.QMainWindow):
         else:
             self.cfg['page_num'] = int(self.page_num_el.text())
 
-        # if not self.popular_lower_el.text().isdigit():
-        #     if len(self.popular_lower_el.text()) > 0:
-        #         self.download_btn.setChecked(False)
-        #         NotificationWindow.warning('收藏量下限必须为整数', '')    
-        #         return False 
-        # else:
-        #     self.cfg['min_popular'] = int(self.popular_lower_el.text())
+        if not self.popular_lower_el.text().isdigit():
+            if len(self.popular_lower_el.text()) > 0:
+                self.download_btn.setChecked(False)
+                NotificationWindow.warning('收藏量下限必须为整数', '')    
+                return False 
+        else:
+            self.cfg['min_popular'] = int(self.popular_lower_el.text())
 
         # 下载流程
         if self.download_btn.isChecked():
@@ -470,21 +470,21 @@ class MainUi(QtWidgets.QMainWindow):
 
 
         # 收藏量限定
-        # self.popular_widget = QtWidgets.QWidget()
-        # self.popular_layout = QtWidgets.QGridLayout() 
-        # self.popular_widget.setLayout(self.popular_layout)
+        self.popular_widget = QtWidgets.QWidget()
+        self.popular_layout = QtWidgets.QGridLayout() 
+        self.popular_widget.setLayout(self.popular_layout)
         
-        # self.popular_label = QtWidgets.QLabel("限定收藏量")
-        # self.popular_label.setObjectName("header")
-        # self.popular_lower_label = QtWidgets.QLabel("下限")
-        # self.popular_lower_el = QtWidgets.QLineEdit("10")
-        # self.popular_lower_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
-        # self.popular_lower_el.setPlaceholderText("不限")
+        self.popular_label = QtWidgets.QLabel("限定收藏量")
+        self.popular_label.setObjectName("header")
+        self.popular_lower_label = QtWidgets.QLabel("下限")
+        self.popular_lower_el = QtWidgets.QLineEdit("10")
+        self.popular_lower_el.setAttribute(QtCore.Qt.WA_MacShowFocusRect, 0) #获取焦点时,去掉系统的蓝色边框
+        self.popular_lower_el.setPlaceholderText("不限")
 
-        # row_start = 3
-        # self.set_layout.addWidget(self.popular_label,row_start,0,1,2)
-        # self.set_layout.addWidget(self.popular_lower_label,row_start+1,0,1,1)
-        # self.set_layout.addWidget(self.popular_lower_el,row_start+1,1,1,1)
+        row_start += 3
+        self.set_layout.addWidget(self.popular_label,row_start,0,1,2)
+        self.set_layout.addWidget(self.popular_lower_label,row_start+1,0,1,1)
+        self.set_layout.addWidget(self.popular_lower_el,row_start+1,1,1,1)
 
 
         # 本地ss代理设置
@@ -520,7 +520,7 @@ class MainUi(QtWidgets.QMainWindow):
             self.sdir_btn.setText(self.cfg['save_dir'])
         self.sdir_btn.clicked.connect(sdir_btn_callback)
 
-        row_start = 3#9
+        row_start += 3#9
         self.set_layout.addWidget(self.sdir_label,row_start,0,1,2)
         self.set_layout.addWidget(self.sdir_btn,row_start,1,1,4)
 
@@ -538,7 +538,7 @@ class MainUi(QtWidgets.QMainWindow):
             self.cfg['use_ms'] = self.ms_ck.isChecked()
         self.ms_ck.stateChanged.connect(if_ms_ck_callback)
 
-        row_start = 6#12
+        row_start += 3#12
         self.set_layout.addWidget(self.ms_label,row_start,0,1,2)
         self.set_layout.addWidget(self.ms_ck,row_start+1,0,1,1)
 
