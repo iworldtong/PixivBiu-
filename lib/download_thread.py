@@ -145,8 +145,9 @@ class DownloadThread(QThread):
             try:
                 fl = os.listdir(path)
                 old_f = None
+                probe = '_'.join(name.split('_')[:-1])
                 for f in fl:
-                    if name in f:
+                    if probe == f[:len(probe)]:
                         old_f = f   
                 
                 if old_f is None:

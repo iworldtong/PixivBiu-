@@ -31,7 +31,13 @@ def fetch_page(keyword, page=1):
     content = sess.get(url, params=params).content 
     bs = BeautifulSoup(content, 'lxml')
     ret = bs.body.p.get_text()
-    ret = json.loads(ret)
-    msg = ret['message']
-    data = ret['data']
+
+    msg, data = None, None
+    try:
+        ret = json.loads(ret)
+        msg = ret['message']
+        data = ret['data']
+    except Exception as e:
+        msg = e
+        
     return msg, data
